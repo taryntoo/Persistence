@@ -1,0 +1,25 @@
+// Describes the Epoch transport stream
+// This file is used to generate RawActivityUploadRequest.pb.h & RawActivityUploadRequest.pb.m
+
+// Note: until this is passed through the parser, at both ends of the wire,
+// the change of the misnamed "strides" to "demicycles" will not take effect.
+
+// Note: PB has been been deprecated for all Jaybird server transport. Use JSON.
+
+message RawActivityUploadRequest {
+	repeated RawActivity rawActivity = 1;
+}
+
+message RawActivity {
+	required int32 time = 1;
+	required int32 type = 2;
+	required int32 intensity = 3;
+	required float score = 4;
+	required float calories = 5;
+	required float demicycles = 6;
+	required bool  charging = 7;
+	required bool  nonUse = 8;
+	required float distance = 9;
+}
+
+ 

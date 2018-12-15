@@ -1,0 +1,143 @@
+Being Persistent Without Being Annoying. Data archiving and streaming with C, Cocoa, Tiny systems, and Internet.
+
+Intro:
+  Modern and historical techniques for persisting and transferring data.
+    Writing systems, Mesopotamia 
+    Morse code, Baudot ("bo-do") 5 bits, 32 chars
+
+  Issues for data storage and transfer:
+    Coding and storage: 
+      ascii, ansi, Unicode (UTF-8, etc)
+      sign bits, complement storage.
+      sizeof(int, long, float, etc.
+      endianess
+      correctness (corruption?)
+      redundancy (and lack)
+      in-memory vs on stream.
+
+
+------------- Earliest 'modern' filesystems, Unix flat files -----------
+aka buncha bits, aka posix streams, stdio.h 
+
+// creating & accessing streams
+ fopen, freopen  // (read, write, append. Binary (b) or text (+)
+ fseek
+ fclose
+ 
+// I/O a byte at a time, usually the basis for all the rest (stdio implementations may cheat)
+ fgetc	
+ fputc
+
+// line oriented (text editors)
+ fgets 	// reads a line into buffer
+ fputs	// writes string (usually EOL + nul terminator)
+
+// structuring a line oriented stream, parsing a file of lines.
+ int fscanf(FILE * restrict stream, const char * restrict format, ...);
+ int fprintf(FILE * restrict stream, const char * restrict format, ...);
+    
+// block oriented (binary, position dependent structures. EXTREMELY platform dependent!
+ size_t fread(void * restrict ptr,  size_t size, size_t nmemb, FILE * restrict stream);
+ size_t fwrite(const void * restrict ptr, size_t size, size_t nmemb, FILE * restrict stream);
+
+
+----------- Bandwidth limited mechanisms --------------
+Useful for very low power radio, ultra-longwave radio, etc.
+
+ ---------- Google's Protocol Buffers --------
+
+Show RawActivityUploadRequest.proto  // Discuss declarative schema 
+Show RawActivityUploadRequest.pb.h   // Discuss Object accessors
+Show RawActivityUploadRequest.pb.m   // Discuss Code size 
+
+1000+ lines of generated code; means a lot of compiled code for a single message body
+A few dozen messages means 24,000 lines of code, exhausting small CPUs
+Bidirectional code generated for reading and writing.
+Early binding, Each target platform/language needs a separate pre-compilation tool.
+Only supports Objective languages, unsuitable for nano-processors, (show misfit shine)
+
+Declarative, with some compression, at the expense of large code.  
+Unpredictable message size, using 7 bits/byte, a value < 127 stored in single byte.
+Every field, even a bool, needs entire byte. (perhaps supports C bitfields?)
+
+---- Home rolled, maximum compression, Maximum platform portability -------
+
+Bluetooth LE (single message is typically < 20 bytes of useful content)
+   
+Show:
+  BLEdataPackingExample.c   // Discuss bit-packing, declarative vs functional programming
+  BMGeckoParser1_0.h        // Discuss useful APIs for packing unpacking (bottom of file)
+  BMGeckoParser.c           // Discuss shift and mask vs multiplication.
+
+Late binding, code size greatly reduced by including the very compact data declarations.
+< 500 lines of parsing code plus ~10 lines per message declaration. Less than 1000 lines total for 2 dozen message types.
+
+
+-------------- Built-In persistence, Object Introspection
+
+NSCoding, ObjectiveC's native storage
+
+Smalltalk & state persistence. 
+
+The basis of Nib & xib files.
+A path to undo/redo via archive & restore.
+
+Show objectgraph.png   // Discuss Object graph (trees, not pictures.)  
+  An ActivityDay is a container for:
+    An array of Podstreams, each containing
+	An IntensityIntervalCollection containing
+		A binary blob which is a set of byte pairs of intensity & duration
+	An ActivityIntervalCollection containing
+		An array of ActivityInterval instances, each containing
+		activityType, secondsInActivity, demicycles, & (optionally) score (points), kCals, distanceKM
+    A GozoneLump, (requires further expansion)
+    An ActivitySumCollection (optional, since it can be computed from the foregoing)
+
+Not everything has to be persisted, accessors can compute.
+
+It's all about the relations. NSCoding excels at complex relational datasets
+Useful for tables and arrays too.
+
+Being coding compliant
+
+Drilling down, examine the mechanisms for coding.
+
+  @interface JayRawReignActivity : NSObject <NSCoding> // conforms to native persistence.
+
+// brute force, just name the fields.
+- (instancetype)initWithCoder:(NSCoder *)decoder {
+    self = [super init];
+    if (self) {
+        _eraData       = [decoder decodeObjectForKey:@"eraData"];
+        _eraStartTime  = [decoder decodeObjectForKey:@"eraStartTime"];
+        _epochDuration = [decoder decodeDoubleForKey:@"epochDuration"];
+    }
+    return self;
+}
+
+- (void)encodeWithCoder:(NSCoder *)encoder {
+    [encoder encodeObject:self.eraData forKey:@"eraData"];
+    [encoder encodeObject:self.eraStartTime forKey:@"eraStartTime"];
+    [encoder encodeDouble:self.epochDuration forKey:@"epochDuration"];
+}
+
+BOOL result = [NSKeyedArchiver archiveRootObject:self toFile:archivePath];
+
+The brute force boilerplate is annoying and unnecessary.
+  Using introspection, one can sidestep it:
+
+    objc_property_t *properties = class_copyPropertyList(aClass, &count);
+    for (int i = 0; i < count; i++) {
+        NSString *key = [NSString stringWithUTF8String:property_getName(properties[i])];
+        [keys addObject:key];
+    }
+    // then traverse the keys list to access the fields and archive.
+
+------- Other common Cocoa storage schemes --------
+
+Touch on Plists (recursive name/value sets)
+Touch on CoreData (Objective APIs to SQL stores)
+
+-------- Web Data ---------
+
+Touch on JSON
